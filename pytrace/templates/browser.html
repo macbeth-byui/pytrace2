@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>pytrace</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+  <div class="app">
+    <div class="left">
+      <div id="codeArea" class="code-area">
+      </div>
+
+      <div class="panel">
+        <textarea class="terminal" id="terminalArea" placeholder=""></textarea>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="panel">
+        <button id="startBtn" type="button">Start</button>
+        <button id="stepBtn" type="button">Step</button>
+        <button id="stopBtn" type="button">Stop</button>
+      </div>
+
+      <!-- Bottom-right panel: Variables "cards" list (hidden when empty) -->
+      <div class="panel vars-panel">
+        <!-- <div id="varsWrap" class="vars-wrap"> -->
+          <div class="vars-header">Variables</div>
+          <div id="varsList" class="vars-list" role="list"></div>
+        <!-- </div> -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STATE_IDLE = 0;
+    const STATE_RUNNING = 1;
+    const STATE_WAIT = 2;
+    const STATE_DEAD = -1;
+
+    const codeArea = document.getElementById("codeArea")
+    const terminalArea = document.getElementById("terminalArea");
+    const startBtn = document.getElementById("startBtn");
+    const stepBtn = document.getElementById("stepBtn");
+    const stopBtn = document.getElementById("stopBtn");
+
+    // const varsWrap = document.getElementById("varsWrap");
+    const varsList = document.getElementById("varsList");
+  
+
+    let state = STATE_IDLE;
+    startBtn.disabled = false;
+    stepBtn.disabled = true;
+    stopBtn.disabled = true;
+
+    let variables = {};
+    let codeLinesVisited = new Set();
+    let code = "print(\"Hello World\")";
+
+    renderEditor();
+
+    // function clearVars() {
+    //   console.log("clear")
+    //   varsList.innerHTML = "";
+    //   varsWrap.style.display = "none";
+    //   variables = {};
+    //   codeArea.innerHTML = ""
+    //   codeLinesVisited = new Set()
+    // }
+
+    function renderVariables(data) {
+      const entries = Object.entries(data);
+
+      entries.sort(([a], [b]) => a.localeCompare(b));
+
+      const frag = document.createDocumentFragment();
+
+      console.log(variables)
+      for (const [name, value] of entries) {
+        let highlight = false;
+        console.log(name)
+        console.log(value)  
+        if (name in variables) {
+          if (variables[name] !== value) {
+            highlight = true;
+          }
+        } else {
+          highlight = true;
+        }
+        console.log(highlight)
+        const card = document.createElement("div");
+        if (highlight) {
+          card.className = "var-card var-changed"
+        } else {
+          card.className = "var-card"
+        }
+        // card.className = "var-card";
+        card.setAttribute("role", "listitem");
+
+        const key = document.createElement("div");
+        key.className = "var-key";
+        key.textContent = name;
+
+        const val = document.createElement("div");
+        val.className = "var-val";
+        val.textContent = String(value);
+
+        card.appendChild(key);
+        card.appendChild(val);
+        frag.appendChild(card);
+        variables[name] = value;
+      }
+      varsList.innerHTML = "";
+      varsList.appendChild(frag);
+      // varsWrap.style.display = "";
+    }
+
+    function renderCode(codeText, line_number) {
+              // <div id="code-list" class="code-list" role="list"></div>
+        // <!-- <textarea class="code" id="codeArea" placeholder="Code goes here"></textarea> -->
+      const frag = document.createDocumentFragment();
+      const contents = document.createElement("div")
+      contents.className = "code-list";
+      contents.id = "code-list";
+      contents.role = "list"
+      frag.appendChild(contents);
+      const lines = codeText.split(/\r?\n/);
+      
+      lines.forEach((line,index) => {
+        console.log(line);
+        console.log(codeLinesVisited);
+        const card = document.createElement("div");
+        if (index + 1 == line_number) {
+          card.className = "code-card current"
+        } else if (codeLinesVisited.has(index+1)) {
+          card.className = "code-card visited"
+        } else {
+          card.className = "code-card unvisited"
+        }
+
+        card.setAttribute("role", "listitem");
+
+        const key = document.createElement("pre");
+        key.className = "code-card text";
+        key.textContent = line;
+        card.appendChild(key);
+        contents.appendChild(card);
+      });
+      codeLinesVisited.add(line_number);
+       console.log(codeLinesVisited);
+      codeArea.innerHTML = "";
+      codeArea.appendChild(frag);
+      // varsWrap.style.display = "";
+    }
+
+    function renderEditor() {
+      codeLinesVisited = new Set();
+      const frag = document.createDocumentFragment();
+      const contents = document.createElement("textarea")
+      contents.className = "code-editor";
+      contents.id = "code-editor";
+      contents.value = code;
+      frag.appendChild(contents);
+      codeArea.innerHTML = "";
+      codeArea.appendChild(frag);
+    }
+
+
+    const ws = new WebSocket(`ws://${location.host}/ws`);
+
+    ws.addEventListener("close", function () {
+      console.log("Server Down");
+      terminalArea.value += "\n--- SERVER IS DOWN ---\n"
+      state = STATE_DEAD
+      renderEditor();
+      startBtn.disabled = true;
+      stepBtn.disabled = true;
+      stopBtn.disabled = true;
+    });
+
+    ws.addEventListener("error", function () {
+      console.log("Server Error");
+      terminalArea.value += "\n--- SERVER IS IN ERROR STATE ---\n"
+      state = STATE_DEAD
+      renderEditor();
+      startBtn.disabled = true;
+      stepBtn.disabled = true;
+      stopBtn.disabled = true;
+    });
+
+    ws.addEventListener("message", function (event) {
+      let data;
+      try {
+        data = JSON.parse(event.data);
+      } catch (_) {
+        console.log("ERROR: Expected JSON => ", event.data);
+        return;
+      }
+
+      if (!("CMD" in data)) {
+        console.log("ERROR: Missing CMD parameter => ", data);
+        return;
+      }
+
+      if (!("CONTENT" in data)) {
+        console.log("ERROR: Missing CONTENT parameter => ", data);
+        return;
+      }
+
+      switch (data.CMD) {
+        case "WS_CMD_STDOUT":
+          terminalArea.value += data.CONTENT.TEXT;
+          requestAnimationFrame(() => moveCaretToEnd(terminalArea));
+          break;
+
+        case "WS_CMD_STATE":
+          if (data.CONTENT.STATE === STATE_IDLE) {
+            startBtn.disabled = false;
+            stepBtn.disabled = true;
+            stopBtn.disabled = true;
+            renderEditor();
+          } else if (data.CONTENT.STATE === STATE_RUNNING) {
+            startBtn.disabled = true;
+            stepBtn.disabled = true;
+            stopBtn.disabled = false;
+          } else if (data.CONTENT.STATE === STATE_WAIT) {
+            startBtn.disabled = true;
+            stepBtn.disabled = false;
+            stopBtn.disabled = false;
+          } else {
+            console.log("ERROR: Invalid state => ", data.CONTENT.STATE);
+            return;
+          }
+          state = data.CONTENT.STATE;
+          break;
+
+        case "WS_CMD_DATA":
+          renderVariables(data.CONTENT.variables);
+          renderCode(data.CONTENT.code, data.CONTENT.line)
+          console.log(data.CONTENT.line);
+          break;
+
+        // case "code":
+        //   renderCode(data.content);
+        //   break;
+
+        default:
+          console.log("ERROR: Invalid Command => ", data.CMD);
+          return;
+      }
+    });
+
+    function moveCaretToEnd(el) {
+      el.focus();
+      const len = el.value.length;
+      el.setSelectionRange(len, len);
+      el.scrollTop = el.scrollHeight;
+    }
+
+    terminalArea.addEventListener("focus", () => moveCaretToEnd(terminalArea));
+    terminalArea.addEventListener("mouseup", () => requestAnimationFrame(() => moveCaretToEnd(terminalArea)));
+    terminalArea.addEventListener("keydown", () => requestAnimationFrame(() => moveCaretToEnd(terminalArea)));
+
+    terminalArea.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        ws.send(JSON.stringify({ "CMD": "WS_CMD_STDIN", "CONTEXT": {"TEXT" : "\n" }}));
+        event.preventDefault();
+        requestAnimationFrame(() => moveCaretToEnd(terminalArea));
+      }
+    });
+
+    terminalArea.addEventListener("beforeinput", (event) => {
+      event.preventDefault();
+      requestAnimationFrame(() => moveCaretToEnd(terminalArea));
+
+      if (event.inputType === "insertText" || event.inputType === "insertFromPaste") {
+        const input = event.data ?? "";
+        ws.send(JSON.stringify({ "CMD": "WS_CMD_STDIN", "CONTEXT": {"TEXT" : input }}));
+      } else if (event.inputType === "insertLineBreak") {
+        ws.send(JSON.stringify({ "CMD": "WS_CMD_STDIN", "CONTEXT": {"TEXT" : "\n" }}));
+      }
+    });
+
+    stopBtn.addEventListener("click", () => ws.send(JSON.stringify({ "CMD": "WS_CMD_STOP", "CONTENT" : {} })));
+    startBtn.addEventListener("click", () => {
+          const codeEditor = document.getElementById("code-editor");
+          code = codeEditor.value;
+          ws.send(JSON.stringify({ "CMD": "WS_CMD_START", "CONTENT" : {"CODE" : code }}))
+        });
+    stepBtn.addEventListener("click", () => ws.send(JSON.stringify({ "CMD" : "WS_CMD_STEP", "CONTENT" : {} })));
+  </script>
+
+</body>
+
+</html>

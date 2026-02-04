@@ -1,0 +1,190 @@
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+/* Layout */
+.app {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 12px;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.left {
+  display: grid;
+  grid-template-rows: 3fr 1fr;
+  gap: 12px;
+  min-height: 0;
+}
+
+.right {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 12px;
+  min-height: 0;
+}
+
+/* .panel {
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 8px;
+  background: #fafafa;
+  box-sizing: border-box;
+} */
+
+.code-area {
+  width: 100%;
+  height: 100%;
+  /* border: 1px solid #bbb;
+  padding: 8px; */
+  border: 1px solid #333;
+  border-radius: 8px;
+  font: 20px ui-monospace, Menlo, Consolas, monospace, bold;
+}
+
+.terminal {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  border: 1px solid #333;
+  /* border: 1px solid #bbb;
+  padding: 8px; */
+  resize: none;
+  font: 14px ui-monospace, Menlo, Consolas, monospace;
+}
+
+button {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #333;
+  font-weight: 700;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+/* Variables panel */
+.vars-panel {
+  background: #eaf4ff;
+  border-color: #b7d7ff;
+  border: 1px solid #333;
+  border-radius: 8px;
+}
+
+/* .vars-wrap {
+  height: 100%;
+  overflow-y: auto;
+} */
+
+.vars-header {
+  font-size: 18px;
+  font-weight: 800;
+  color: #134a8a;
+  margin-bottom: 10px;
+}
+
+/* Variable cards */
+.vars-list {
+  display: grid;
+  gap: 12px;
+}
+
+.var-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 14px;
+  border: 1px solid #d0d0d0;
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+
+.var-card.var-changed {
+  background: #eaffea;
+  border-color: #9fe0a3;
+}
+
+.var-key {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f3c73;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.var-val {
+  font-size: 18px;
+  font-weight: 600;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+
+/* Code cards */
+.code-list {
+  display: grid;
+  padding: 5px;
+
+}
+
+/* .code-card {
+  background: #ffffff; */
+  /* border-radius: 16px; */
+  /* padding: 0px; */
+  /* border: 1px solid #d0d0d0; */
+  /* display: grid; */
+  /* grid-template-columns: 1fr 1.5fr; */
+  /* gap: 0px; */
+  /* box-shadow: 0 2px 6px rgba(0,0,0,0.08); */
+/* } */
+
+.code-card.current {
+  background: #7ff56b;
+  /* border-color: #9fe0a3; */
+}
+
+.code-card.visited {
+  background: #bdd2f4;
+  /* border-color: #9fe0a3; */
+}
+
+.code-card.unvisited {
+  background: #ffffff;
+  /* border-color: #9fe0a3; */
+}
+
+.code-card.text {
+  font-size: 18px;
+  font-weight: 800;
+  color: #000000;
+  margin: 0;
+  padding: 5px;
+  line-height: 1.5;
+  font: 14px ui-monospace, Menlo, Consolas, monospace;
+  /* white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; */
+}
+
+.code-editor {
+  width: 100%;
+  height: 100%;
+  /* border-radius: 6px;
+  border: 1px solid #333; */
+  /* border: 1px solid #bbb;
+  padding: 8px; */
+  resize: none;
+  font: 14px ui-monospace, Menlo, Consolas, monospace;
+  font-size: 18px;
+  font-weight: 800;
+  color: #000000;
+  margin: 0;
+  padding: 5px;
+  line-height: 1.5;
+}
