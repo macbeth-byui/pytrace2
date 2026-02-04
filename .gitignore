@@ -1,2 +1,3 @@
 *.sock
 __pycache__/
+venv/
