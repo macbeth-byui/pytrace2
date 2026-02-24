@@ -39,6 +39,8 @@ class Client:
             try:
                 await self.reset_client()
                 await self.ws.close(code=1001)
+            except:
+                pass
             finally:
                 self.ws = None
         self.state = Client.STATE_DEAD
@@ -80,6 +82,8 @@ class Client:
         if self.process is not None:
             try:
                 await self.process.stop()
+            except:
+                pass
             finally:
                 self.process = None
         
@@ -87,8 +91,10 @@ class Client:
             try:
                 self.process_task.cancel()
                 await self.process_task
+            except:
+                pass
             finally:
-                self.process_task = None                
+                self.process_task = None      
 
     #########################################################################################
     # Functions related to handling messages from the WebScoket object                      #
@@ -105,7 +111,7 @@ class Client:
             while True:
                 message = await self.ws.receive()
                 await self.handle_ws_msg(message)
-        except asyncio.exceptions.CancelledError:
+        except:
             pass
         finally:
             await self.disconnect()
@@ -236,7 +242,7 @@ class Client:
         Handle request from the process indicating that the process is completed
         '''
         if self.state == Client.STATE_RUNNING:
-            self.send_ws_terminal("\n--- PROGRAM COMPLETED ---\n")
+            await self.send_ws_terminal("\n--- PROGRAM COMPLETED ---\n")
         await self.reset_client()
         await self.set_state(Client.STATE_IDLE)
         

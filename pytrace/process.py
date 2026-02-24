@@ -3,7 +3,6 @@ import pty
 import os
 import uuid
 import asyncio
-import sys
 import json
 from interface import Interface
 
@@ -14,135 +13,268 @@ class Process:
         self.callback = callback
         self.pty = None
         self.server_name = None
+        self.server = None
         self.process = None
         self.pty = None
         self.server_writer = None
 
+    #########################################################################################
+    # Functions related to starting the process that runs the code                          #
+    #########################################################################################
+
     async def start(self):
+        '''
+        Start a new process running the python code.
+        '''
         if self.process is not None:
             print(f"[{self}] => ERROR: Process already exists when starting process")
             return
-        full_code = (Process.TRACE_CODE 
-            + "\ndef __run__():\n"
-            + textwrap.indent(self.code, "    ")
-            + "\ntry:\n"
-            + "\n    __run__()"
-            + "\nexcept KeyboardInterrupt:"
-            + "\n    pass")
+        if self.server is not None:
+            print(f"[{self}] => ERROR: Server already exists when starting process")
+            return
+        if self.server_name is not None:
+            print(f"[{self}] => ERROR: Server name already exists when starting process")
+            return
+        if self.pty is not None:
+            print(f"[{self}] => ERROR: PTY already exists when starting process")
+            return
         
+        # Wrap code with TRACE_CODE to enable communication back to the client
+        full_code = Process.START_CODE + f"    exec(\"\"\"{self.code}\"\"\")\n" + Process.END_CODE
+        print(full_code)
+        
+        # Create a PTY for both sides for stdout/stdin forwarding
+        # PTY is a pseudo terminal interface
         self.pty, pty_subprocess = pty.openpty()
-        server_name = f"pytrace_{str(uuid.uuid4())}.sock"
-        server = await asyncio.start_unix_server(self.handle_server, path=server_name)
-        os.chmod(server_name, 0o660)
-        env = os.environ.copy()
-        env['SOCK_PATH'] = server_name
+
+        # Create a server for process to communicate status of the program
+        self.server_name = f"sockets/pytrace_{str(uuid.uuid4())}.sock"
+        container_server_name = f"/sockets/{os.path.basename(self.server_name)}" 
+        os.makedirs("sockets", exist_ok=True)
+        os.chmod("sockets", 0o777)       
+        self.server = await asyncio.start_unix_server(self.handle_server, path=self.server_name)
+        os.chmod(self.server_name, 0o666)
+
+        # Start the process.  
         self.process = await asyncio.create_subprocess_exec(
-            sys.executable, "-u", "-c", full_code,
+            "docker", "run", "-u", f"{os.getuid()}:{os.getgid()}", "--rm", "-it", 
+            "-v", f"{os.getcwd()}/sockets:/sockets", "-e", f"SERVER_NAME={container_server_name}", 
+            "python:3.10-slim", "python", "-u", "-c", full_code,
             stdout = pty_subprocess,
             stderr = pty_subprocess,
             stdin = pty_subprocess,
-            close_fds = True,
-            env = env)
+            close_fds = True)
+        
+        # We don't need the process side of the PTY anymore
         os.close(pty_subprocess)
-        print("DEBUG: Started Process and Server")
+
+        # Read STDOUT until the process completes
         await self.handle_process_reader()
-        print("DEBUG: Cleaning Up Process and Server")
+
+        # Verify the process has completely closed
+        # and then cleanup and send message back to Client
+        # that the program is completed
         await self.process.wait()
-        os.close(self.pty)
-        server.close()
-        await server.wait_closed()
-        os.remove(server_name)
         self.process = None
-        message = {"CMD" : Interface.PROC_CMD_COMPLETED, "CONTENT" : {}}
-        await self.callback(message)
+        await self.completed()
 
     async def handle_process_reader(self):
+        '''
+        Read STDOUT from the process via the PTY.  Forward
+        any text to the Client
+        '''
+
+        # Create a queue to manage all the STDOUT received
         queue = asyncio.Queue()
         pty_loop = asyncio.get_running_loop()
-        pty_loop.add_reader(self.pty, on_read)
 
         def on_read():
+            '''
+            Read process STDOUT from the PTY and put it in the queue
+            for processing by handle_process_reader
+            '''
             try:
                 data = os.read(self.pty, 1024)
+                queue.put_nowait(data)
             except:
-                data = b""
-            finally:
-                if data:
-                    queue.put_nowait(data)
-                else:
-                    queue.put_nowait(None)
-        
+                # This will cause the handle_process_reader
+                # to exit and return back to the start function.
+                queue.put_nowait(None)
+
+        # Connect the PTY as a reader on the current execution loop
+        pty_loop.add_reader(self.pty, on_read)
         while True:
             text = await queue.get()
-            print("DEBUG: TEXT = {text}")
             if text is None:
+                # When None, then the STDOUT has been closed
                 break
+            # Forward the STDOUT to the client
             text = text.decode("utf-8")
             message = {"CMD" : Interface.PROC_CMD_STDOUT, "CONTENT" : { "TEXT" : text}}
             await self.callback(message)
 
+        # When STDOUT is closed, remove the PTY as a reader
         pty_loop.remove_reader(self.pty)
 
     async def handle_server(self, reader, writer):
+        '''
+        Handles all data messages sent to the server from the code process.  These messages
+        are forwarded to the client.
+        '''
+        if self.server_writer is not None:
+            print(f"[{self}] => ERROR: Server Writer already exists when starting process")
+            return
+        
+        # Save the current writer so it can be used in other functions to forward STDIN
         self.server_writer = writer
         try:
             while True:
+                # Read messages sent by the client until None is returned by handle_process_reader
                 json_message = await reader.read(4096)
-                if not json_message:
+                if json_message is None:
                     break
+
+                # Convert the data received into a dictionary and send to the client
                 decoded_json_message = json_message.decode("UTF-8").rstrip("\n")
-                print(f"DEBUG: {decoded_json_message}")
                 content = json.loads(decoded_json_message)
                 message = {"CMD" : Interface.PROC_CMD_DATA, "CONTENT" : content}
                 await self.callback(message)
+        except:
+            pass
         finally:
             try:
-                print("DEBUG: Attempting to close writer")
+                # Runs when the server is closed
                 writer.close()
                 await writer.wait_closed()
-                self.server_writer = None
             except:
                 pass
-            
+            finally:
+                self.server_writer = None
 
+    #########################################################################################
+    # Functions related to stopping (or cleaning up) the process that runs the code         #
+    #########################################################################################
+            
     async def stop(self):
+        '''
+        Shutdown the server, process, and pty if they have not already be closed.
+        '''
+        if self.server is not None:
+            self.server.close()
+            await self.server.wait_closed()
+            self.server = None
         if self.process is not None:
             try:
                 self.process.kill()
+            except:
+                pass
             finally:
                 await self.process.wait()
                 self.process = None  
+        if self.pty is not None:
+            os.close(self.pty)
+            self.pty = None
+        if self.server_name is not None:
+            os.remove(self.server_name)
+            self.server_name = None
+
+    async def completed(self):
+        '''
+        If a process has completed naturally, then perform the stop function
+        and then provide a completed indication to the client.  This is not sent
+        if the process did not complete naturally.
+        '''
+        await self.stop()
+        message = {"CMD" : Interface.PROC_CMD_COMPLETED, "CONTENT" : {}}
+        await self.callback(message)
+
+    #########################################################################################
+    # Functions related to commands from the client and code process.                       #
+    #########################################################################################
 
     async def proceed(self):
-        print("DEBUG: Proceed")
+        '''
+        Direct the code process to proceed to the next line of code
+        '''
         if self.server_writer is None:
             print(f"[{self}] => ERROR: Server Writer does not exist to proceed")
             return
+        # The word PROCEED is not checked by the code running in the process
         self.server_writer.write(b"PROCEED\n")
         await self.server_writer.drain()
 
     async def forward(self, text):
+        '''
+        Direct STDIN text to be used by the code process
+        '''
         if self.pty is None:
             print(f"[{self}] => ERROR: PTY does not exist to forward STDIN")
             return
         os.write(self.pty, text.encode("utf-8"))
 
-    TRACE_CODE = \
+    START_CODE = \
 """import sys
 import socket
 import json
 import os
+import traceback
+
 def trace(frame, event, arg):
     if event == "line" and frame.f_code.co_filename == "<string>": 
-        sock_path = os.environ.get("SOCK_PATH")
+        print(frame.f_lineno, event, frame.f_code.co_filename, frame.f_code.co_name)
+        sock_path = os.environ.get("SERVER_NAME")
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+            variables = {}
+            for (name, value) in frame.f_locals.items():
+                try:
+                    json.dumps(value)
+                    variables[name] = value
+                except:
+                    pass
             data = json.dumps({
-                "line": frame.f_lineno - 19,
+                "line": frame.f_lineno,  # length of this code + 2
                 "file": frame.f_code.co_filename,
-                "variables": frame.f_locals
+                "variables": variables
             })
-            s.connect(sock_path)
-            s.sendall(data.encode("utf-8"))
-            print(s.recv(4096).decode("utf-8"))
+            try:
+                s.connect(sock_path)
+                s.sendall(data.encode("utf-8"))
+                _ = s.recv(4096)
+            except:
+                sys.exit()
     return trace
-sys.settrace(trace)"""
+
+sys.settrace(trace)
+try:
+"""
+
+    END_CODE = \
+"""except SyntaxError as e:
+    print()
+    print("EXCEPTION OCCURRED")
+    print("==================")
+    print(f"{type(e).__name__}: {e.msg}")
+    print(f"(Row {e.lineno}, Col {e.offset})")
+
+except Exception as e:
+    tb = traceback.extract_tb(e.__traceback__)
+    stack = []
+    print()
+    print("EXCEPTION OCCURRED")
+    print("==================")
+    print(f"{type(e).__name__}: {str(e)}")
+    for i in range(len(tb)-1, -1, -1):
+        if tb[i].filename == "<string>":
+            if tb[i].name == "<module>":
+                stack.append((None, tb[i].lineno, tb[i].colno))
+            else:
+                stack.append((tb[i].name, tb[i].lineno, tb[i].colno))
+    space = ""
+    if len(stack) > 0:
+        for (name,line,position) in reversed(stack):
+            if name is None:
+                print(f"(Row {line}, Col {position})")
+            else:
+                print(f"{space}\u2514\u2500\u25b6 Inside [{name}] (Row {line}, Col {position})")
+            space += "       "
+"""

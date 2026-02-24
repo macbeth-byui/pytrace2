@@ -4,11 +4,16 @@ html, body {
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 }
 
-/* Layout */
+img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
 .app {
   height: 100%;
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: 3fr 1fr;
   gap: 12px;
   padding: 12px;
   box-sizing: border-box;
@@ -16,50 +21,46 @@ html, body {
 
 .left {
   display: grid;
-  grid-template-rows: 3fr 1fr;
+  grid-template-rows: 2fr 1fr auto;
   gap: 12px;
   min-height: 0;
 }
 
 .right {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto 1fr auto;
   gap: 12px;
   min-height: 0;
 }
 
-/* .panel {
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  padding: 8px;
-  background: #fafafa;
-  box-sizing: border-box;
-} */
-
-.code-area {
-  width: 100%;
-  height: 100%;
-  /* border: 1px solid #bbb;
-  padding: 8px; */
+.code-border {
   border: 1px solid #333;
   border-radius: 8px;
-  font: 20px ui-monospace, Menlo, Consolas, monospace, bold;
+  padding: 8px;
+  box-sizing: border-box;   /* make height/width include padding */
+  min-height: 0;            /* IMPORTANT in grid/flex containers */
+  display: block;
 }
 
-.terminal {
+
+.terminal-border {
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 8px;
+  overflow: hidden;
+}
+
+.terminal-area {
+  resize: none;
+  font: 14px ui-monospace, Menlo, Consolas, monospace, bold;
+  border: none;
+  outline: none;
+  box-shadow: none; 
   width: 100%;
   height: 100%;
-  border-radius: 8px;
-  border: 1px solid #333;
-  /* border: 1px solid #bbb;
-  padding: 8px; */
-  resize: none;
-  font: 14px ui-monospace, Menlo, Consolas, monospace;
 }
 
 button {
-  width: 100%;
-  padding: 12px;
   border-radius: 8px;
   border: 1px solid #333;
   font-weight: 700;
@@ -67,30 +68,17 @@ button {
   cursor: pointer;
 }
 
-/* Variables panel */
-.vars-panel {
-  background: #eaf4ff;
-  border-color: #b7d7ff;
+.upper-control-area {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.data-area {
+  /* display: grid;
+  gap: 12px; */
   border: 1px solid #333;
   border-radius: 8px;
-}
-
-/* .vars-wrap {
-  height: 100%;
-  overflow-y: auto;
-} */
-
-.vars-header {
-  font-size: 18px;
-  font-weight: 800;
-  color: #134a8a;
-  margin-bottom: 10px;
-}
-
-/* Variable cards */
-.vars-list {
-  display: grid;
-  gap: 12px;
 }
 
 .var-card {
@@ -126,65 +114,15 @@ button {
 }
 
 
-/* Code cards */
-.code-list {
-  display: grid;
-  padding: 5px;
 
-}
-
-/* .code-card {
-  background: #ffffff; */
-  /* border-radius: 16px; */
-  /* padding: 0px; */
-  /* border: 1px solid #d0d0d0; */
-  /* display: grid; */
-  /* grid-template-columns: 1fr 1.5fr; */
-  /* gap: 0px; */
-  /* box-shadow: 0 2px 6px rgba(0,0,0,0.08); */
-/* } */
-
-.code-card.current {
+.code-current {
   background: #7ff56b;
-  /* border-color: #9fe0a3; */
 }
 
-.code-card.visited {
+.code-visited {
   background: #bdd2f4;
-  /* border-color: #9fe0a3; */
 }
 
-.code-card.unvisited {
+.code-unvisited {
   background: #ffffff;
-  /* border-color: #9fe0a3; */
-}
-
-.code-card.text {
-  font-size: 18px;
-  font-weight: 800;
-  color: #000000;
-  margin: 0;
-  padding: 5px;
-  line-height: 1.5;
-  font: 14px ui-monospace, Menlo, Consolas, monospace;
-  /* white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis; */
-}
-
-.code-editor {
-  width: 100%;
-  height: 100%;
-  /* border-radius: 6px;
-  border: 1px solid #333; */
-  /* border: 1px solid #bbb;
-  padding: 8px; */
-  resize: none;
-  font: 14px ui-monospace, Menlo, Consolas, monospace;
-  font-size: 18px;
-  font-weight: 800;
-  color: #000000;
-  margin: 0;
-  padding: 5px;
-  line-height: 1.5;
 }

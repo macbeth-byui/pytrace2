@@ -22,6 +22,8 @@ async def ws():
     client = Client(qt.websocket)
     try:
         await client.handle_ws()
+    except:
+        pass
     finally:
         pass
 
