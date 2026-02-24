@@ -39,8 +39,12 @@ class Process:
             print(f"[{self}] => ERROR: PTY already exists when starting process")
             return
         
+        x = """
+        "How are you?", he said.
+        """
+        
         # Wrap code with TRACE_CODE to enable communication back to the client
-        full_code = Process.START_CODE + f"    exec(\"\"\"{self.code}\"\"\")\n" + Process.END_CODE
+        full_code = Process.START_CODE + f"\n        exec(\"\"\"\n{self.code}\n\"\"\",ns, ns)\n" + Process.END_CODE
         print(full_code)
         
         # Create a PTY for both sides for stdout/stdin forwarding
@@ -59,7 +63,7 @@ class Process:
         self.process = await asyncio.create_subprocess_exec(
             "docker", "run", "-u", f"{os.getuid()}:{os.getgid()}", "--rm", "-it", 
             "-v", f"{os.getcwd()}/sockets:/sockets", "-e", f"SERVER_NAME={container_server_name}", 
-            "python:3.10-slim", "python", "-u", "-c", full_code,
+            "python:3.11-slim", "python", "-u", "-c", full_code,
             stdout = pty_subprocess,
             stderr = pty_subprocess,
             stdin = pty_subprocess,
@@ -220,8 +224,8 @@ import os
 import traceback
 
 def trace(frame, event, arg):
+    # print(event,frame.f_code.co_name,frame.f_lineno,frame.f_code.co_filename)
     if event == "line" and frame.f_code.co_filename == "<string>": 
-        print(frame.f_lineno, event, frame.f_code.co_filename, frame.f_code.co_name)
         sock_path = os.environ.get("SERVER_NAME")
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
             variables = {}
@@ -232,7 +236,7 @@ def trace(frame, event, arg):
                 except:
                     pass
             data = json.dumps({
-                "line": frame.f_lineno,  # length of this code + 2
+                "line": frame.f_lineno - 1, # Lines of Code in this string
                 "file": frame.f_code.co_filename,
                 "variables": variables
             })
@@ -244,37 +248,43 @@ def trace(frame, event, arg):
                 sys.exit()
     return trace
 
-sys.settrace(trace)
-try:
+def __pytrace():
+    sys.settrace(trace)
+    ns = dict()
+    try:
 """
 
     END_CODE = \
-"""except SyntaxError as e:
-    print()
-    print("EXCEPTION OCCURRED")
-    print("==================")
-    print(f"{type(e).__name__}: {e.msg}")
-    print(f"(Row {e.lineno}, Col {e.offset})")
+"""
 
-except Exception as e:
-    tb = traceback.extract_tb(e.__traceback__)
-    stack = []
-    print()
-    print("EXCEPTION OCCURRED")
-    print("==================")
-    print(f"{type(e).__name__}: {str(e)}")
-    for i in range(len(tb)-1, -1, -1):
-        if tb[i].filename == "<string>":
-            if tb[i].name == "<module>":
-                stack.append((None, tb[i].lineno, tb[i].colno))
-            else:
-                stack.append((tb[i].name, tb[i].lineno, tb[i].colno))
-    space = ""
-    if len(stack) > 0:
-        for (name,line,position) in reversed(stack):
-            if name is None:
-                print(f"(Row {line}, Col {position})")
-            else:
-                print(f"{space}\u2514\u2500\u25b6 Inside [{name}] (Row {line}, Col {position})")
-            space += "       "
+    except SyntaxError as e:
+        print()
+        print("EXCEPTION OCCURRED")
+        print("==================")
+        print(f"{type(e).__name__}: {e.msg}")
+        print(f"Row {e.lineno-1}")
+
+    except Exception as e:
+        tb = traceback.extract_tb(e.__traceback__)
+        stack = []
+        print()
+        print("EXCEPTION OCCURRED")
+        print("==================")
+        print(f"{type(e).__name__}: {str(e)}")
+        for i in range(len(tb)-1, -1, -1):
+            if tb[i].filename == "<string>":
+                if tb[i].name == "<module>":
+                    stack.append((None, tb[i].lineno-1))
+                elif tb[i].name != "__pytrace":
+                    stack.append((tb[i].name, tb[i].lineno-1))
+        space = ""
+        if len(stack) > 0:
+            for (name,line) in reversed(stack):
+                if name is None:
+                    print(f"Row {line}")
+                else:
+                    print(f"{space}\u2514\u2500\u25b6 Inside [{name}] (Row {line})")
+                space += "   "
+
+__pytrace()
 """
