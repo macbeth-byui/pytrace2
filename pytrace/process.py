@@ -45,7 +45,6 @@ class Process:
         
         # Wrap code with TRACE_CODE to enable communication back to the client
         full_code = Process.START_CODE + f"\n        exec(\"\"\"\n{self.code}\n\"\"\",ns, ns)\n" + Process.END_CODE
-        print(full_code)
         
         # Create a PTY for both sides for stdout/stdin forwarding
         # PTY is a pseudo terminal interface

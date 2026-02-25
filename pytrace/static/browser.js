@@ -38,9 +38,18 @@ const cm = CodeMirror.fromTextArea(codeArea, {
     tabSize: 4,
     indentWithTabs: false,
     lineWrapping: true,
+    smartIndent: true,
+    spellcheck: false,
+    autocorrect: false,
+    readOnly: false,
+    extraKeys: {
+        Tab: (cm) => cm.execCommand("indentMore"),
+        "Shift-Tab": (cm) => cm.execCommand("indentLess"),
+  },
 });
 cm.getWrapperElement().style.fontSize = "14px";
 cm.setSize('100%', '100%');   // ensures .CodeMirror gets inline size
+
 cm.refresh(); 
 
 setupListeners();
@@ -181,12 +190,12 @@ function handle_ws(event) {
                 startBtn.disabled = true;
                 stepBtn.disabled = true;
                 stopBtn.disabled = false;
-                cm.setOption("readOnly", true);
+                cm.setOption("readOnly", "nocursor");
             } else if (data.CONTENT.STATE === STATE_WAIT) {
                 startBtn.disabled = true;
                 stepBtn.disabled = false;
                 stopBtn.disabled = false;
-                cm.setOption("readOnly", true);
+                cm.setOption("readOnly", "nocursor");
             } else {
                 console.log("ERROR: Invalid state => ", data.CONTENT.STATE);
                 return;
