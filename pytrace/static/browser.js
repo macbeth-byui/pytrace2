@@ -14,17 +14,35 @@ const WS_CMD_STOP = "WS_CMD_STOP"
 const WS_CMD_STATE = "WS_CMD_STATE"
 const WS_CMD_DATA = "WS_CMD_DATA"
 
+const DATA_VARIABLES = 0
+const DATA_FUNCTIONS = 1
+
 const codeArea = document.getElementById("codeArea")
 const terminalArea = document.getElementById("terminalArea");
 const dataArea = document.getElementById("dataArea");
 const startBtn = document.getElementById("startBtn");
 const stepBtn = document.getElementById("stepBtn");
 const stopBtn = document.getElementById("stopBtn");
+const openBtn = document.getElementById("openBtn");
+const saveBtn = document.getElementById("saveBtn");
+const clearTerminalBtn = document.getElementById("clearTerminalBtn");
+const settingsBtn = document.getElementById("settingsBtn");
+const variableBtn = document.getElementById("variableBtn");
+const functionBtn = document.getElementById("functionBtn");
+const clearDataBtn = document.getElementById("clearDataBtn");
 
 let state = STATE_DEAD;
 startBtn.disabled = false;
 stepBtn.disabled = true;
 stopBtn.disabled = true;
+openBtn.disabled = false;
+saveBtn.disabled = false;
+clearTerminalBtn.disabled = false;
+settingsBtn.disabled = false;
+variableBtn.disabled = false;
+functionBtn.disabled = false;
+clearDataBtn.disabled = false;
+
 let variables = {};
 let currLine = -1;
 let visitedLines = new Set();
@@ -52,15 +70,29 @@ cm.setSize('100%', '100%');   // ensures .CodeMirror gets inline size
 
 cm.refresh(); 
 
+let dataAreaVariables = document.createElement("div");
+let dataAreaFunctions = document.createElement("div");
+let dataState = DATA_VARIABLES;
+clear_data()
+
+
 setupListeners();
 connect();
 
-function renderData(data) {
+function renderDataVariables(data) {
     const entries = Object.entries(data);
 
     entries.sort(([a], [b]) => a.localeCompare(b));
 
-    const frag = document.createDocumentFragment();
+    dataAreaVariables.replaceChildren();
+
+    if (entries.length == 0) {
+        const message = document.createElement("div");
+        message.className = "var-val";
+        message.textContent = String("No Variables Exist");
+        dataAreaVariables.appendChild(message);
+        return;
+    }
 
     for (const [name, value] of entries) {
         let highlight = false;
@@ -90,12 +122,73 @@ function renderData(data) {
 
         card.appendChild(key);
         card.appendChild(val);
-        frag.appendChild(card);
+        dataAreaVariables.appendChild(card);
         variables[name] = value;
     }
-    dataArea.innerHTML = "";
-    dataArea.appendChild(frag);
+}
 
+function renderDataFunctions(data) {
+    const entries = Object.entries(data);
+
+    entries.sort(([a], [b]) => a.localeCompare(b));
+
+    dataAreaFunctions.replaceChildren()
+
+    if (entries.length == 0) {
+        const message = document.createElement("div");
+        message.className = "var-val";
+        message.textContent = String("No Functions Exist");
+        dataAreaFunctions.appendChild(message);
+        return;
+    }
+
+    // for (const [name, value] of entries) {
+    //     let highlight = false;
+    //     if (name in variables) {
+    //         if (variables[name] !== value) {
+    //             highlight = true;
+    //         }
+    //     } else {
+    //         highlight = true;
+    //     }
+
+    //     const card = document.createElement("div");
+    //     if (highlight) {
+    //         card.className = "var-card var-changed"
+    //     } else {
+    //         card.className = "var-card"
+    //     }
+    //     card.setAttribute("role", "listitem");
+
+    //     const key = document.createElement("div");
+    //     key.className = "var-key";
+    //     key.textContent = name;
+
+    //     const val = document.createElement("div");
+    //     val.className = "var-val";
+    //     val.textContent = String(value);
+
+    //     card.appendChild(key);
+    //     card.appendChild(val);
+    //     dataAreaFunctions.appendChild(card);
+    //     variables[name] = value;
+    // }
+}
+
+function displayData(newDataState) {
+    if (newDataState == DATA_VARIABLES) {
+        dataArea.replaceChildren(dataAreaVariables);
+        variableBtn.style.backgroundColor = "cyan";
+        functionBtn.style.backgroundColor = "";
+        dataState = DATA_VARIABLES;
+    } else if (newDataState == DATA_FUNCTIONS) {
+        dataArea.replaceChildren(dataAreaFunctions);
+        variableBtn.style.backgroundColor = "";
+        functionBtn.style.backgroundColor = "cyan";
+        dataState = DATA_FUNCTIONS;
+    } else {
+        console.log("ERROR: Invalid data state to display ["+newDataState+"]");
+    }
 }
 
 function renderCodeHighlights(line_number) {
@@ -184,17 +277,32 @@ function handle_ws(event) {
                 startBtn.disabled = false;
                 stepBtn.disabled = true;
                 stopBtn.disabled = true;
+                openBtn.disabled = false;
+                saveBtn.disabled = false;
+                startBtn.style.backgroundColor = "green";
+                stepBtn.style.backgroundColor = "";
+                stopBtn.style.backgroundColor = "";
                 clearCodeHighlights()
                 cm.setOption("readOnly", false);
             } else if (data.CONTENT.STATE === STATE_RUNNING) {
                 startBtn.disabled = true;
                 stepBtn.disabled = true;
                 stopBtn.disabled = false;
+                openBtn.disabled = true;
+                saveBtn.disabled = true;
+                stopBtn.style.backgroundColor = "red";
+                stepBtn.style.backgroundColor = "";
+                startBtn.style.backgroundColor = "";
                 cm.setOption("readOnly", "nocursor");
             } else if (data.CONTENT.STATE === STATE_WAIT) {
                 startBtn.disabled = true;
                 stepBtn.disabled = false;
                 stopBtn.disabled = false;
+                openBtn.disabled = true;
+                saveBtn.disabled = true;
+                stepBtn.style.backgroundColor = "green";
+                stopBtn.style.backgroundColor = "red";
+                startBtn.style.backgroundColor = "";
                 cm.setOption("readOnly", "nocursor");
             } else {
                 console.log("ERROR: Invalid state => ", data.CONTENT.STATE);
@@ -204,7 +312,9 @@ function handle_ws(event) {
             break;
 
         case WS_CMD_DATA:
-            renderData(data.CONTENT.variables);
+            renderDataVariables(data.CONTENT.variables);
+            renderDataFunctions([]);
+            displayData(dataState);
             renderCodeHighlights(data.CONTENT.line);
             break;
 
@@ -221,10 +331,6 @@ function moveCaretToEnd(el) {
 }
 
 function setupListeners() {
-    // terminalArea.addEventListener("focus", () => moveCaretToEnd(terminalArea));
-    // terminalArea.addEventListener("mouseup", () => requestAnimationFrame(() => moveCaretToEnd(terminalArea)));
-    // terminalArea.addEventListener("keydown", () => requestAnimationFrame(() => moveCaretToEnd(terminalArea)));
-
     terminalArea.addEventListener("keydown", (event) => {
         if (event.key === "Enter") {
             event.preventDefault();
@@ -244,8 +350,19 @@ function setupListeners() {
     });
 
     stopBtn.addEventListener("click", () => ws_send(WS_CMD_STOP, {}));
-    startBtn.addEventListener("click", () => ws_send(WS_CMD_START, {"CODE" : cm.getValue()}));
+    startBtn.addEventListener("click", () => { clear_data(); ws_send(WS_CMD_START, {"CODE" : cm.getValue()}) });
     stepBtn.addEventListener("click", () => ws_send(WS_CMD_STEP, {}));
+    clearTerminalBtn.addEventListener("click", () => terminalArea.value = "");
+    clearDataBtn.addEventListener("click", () => clear_data());
+    variableBtn.addEventListener("click", () => displayData(DATA_VARIABLES));
+    functionBtn.addEventListener("click", () => displayData(DATA_FUNCTIONS));
+}
+
+function clear_data() {
+    variables = {};
+    renderDataVariables([]);
+    renderDataFunctions([]); 
+    displayData(dataState);
 }
 
 function ws_send(command, content) {

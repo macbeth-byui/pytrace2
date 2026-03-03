@@ -140,7 +140,10 @@ class Process:
                 # Convert the data received into a dictionary and send to the client
                 decoded_json_message = json_message.decode("UTF-8").rstrip("\n")
                 content = json.loads(decoded_json_message)
-                message = {"CMD" : Interface.PROC_CMD_DATA, "CONTENT" : content}
+                if content["wait"]:
+                    message = {"CMD" : Interface.PROC_CMD_DATA, "CONTENT" : content}
+                else:
+                    message = {"CMD" : Interface.PROC_CMD_DATA_NO_WAIT, "CONTENT" : content}
                 await self.callback(message)
         except:
             pass
@@ -224,7 +227,7 @@ import traceback
 
 def trace(frame, event, arg):
     # print(event,frame.f_code.co_name,frame.f_lineno,frame.f_code.co_filename)
-    if event == "line" and frame.f_code.co_filename == "<string>": 
+    if (event == "line" or event == "return") and frame.f_code.co_filename == "<string>": 
         sock_path = os.environ.get("SERVER_NAME")
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
             variables = {}
@@ -237,7 +240,8 @@ def trace(frame, event, arg):
             data = json.dumps({
                 "line": frame.f_lineno - 1, # Lines of Code in this string
                 "file": frame.f_code.co_filename,
-                "variables": variables
+                "variables": variables,
+                "wait": event == "line"
             })
             try:
                 s.connect(sock_path)

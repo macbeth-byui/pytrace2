@@ -210,6 +210,8 @@ class Client:
         match cmd:
             case Interface.PROC_CMD_DATA:
                 await self.handle_process_data(content)
+            case Interface.PROC_CMD_DATA_NO_WAIT:
+                await self.handle_process_data_no_wait(content)
             case Interface.PROC_CMD_STDOUT:
                 await self.handle_process_stdout(content)
             case Interface.PROC_CMD_COMPLETED:
@@ -224,6 +226,14 @@ class Client:
         '''
         await self.send_ws(Client.WS_CMD_DATA, content)
         await self.set_state(Client.STATE_WAIT)
+
+    async def handle_process_data_no_wait(self, content):
+        '''
+        Handle request from process to move to transmit DATA to the Client
+        but do not move to the WAIT state.
+        '''
+        await self.send_ws(Client.WS_CMD_DATA, content)
+        await self.process.proceed()
         
     async def handle_process_stdout(self, content):
         '''
