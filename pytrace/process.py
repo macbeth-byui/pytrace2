@@ -252,7 +252,6 @@ def trace(frame, event, arg):
                 "wait": prev_line != frame.f_lineno - 1
             })
             prev_line = frame.f_lineno - 1
-            print(data)
             try:
                 s.connect(sock_path)
                 s.sendall(data.encode("utf-8"))

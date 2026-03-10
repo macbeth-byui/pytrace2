@@ -129,7 +129,6 @@ function renderDataVariables(data) {
 
 function renderDataFunctions(data) {
     dataAreaFunctions.replaceChildren()
-    console.log(data)
 
     if (data.length == 0) {
         const message = document.createElement("div");
