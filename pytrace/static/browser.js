@@ -128,51 +128,32 @@ function renderDataVariables(data) {
 }
 
 function renderDataFunctions(data) {
-    const entries = Object.entries(data);
-
-    entries.sort(([a], [b]) => a.localeCompare(b));
-
     dataAreaFunctions.replaceChildren()
+    console.log(data)
 
-    if (entries.length == 0) {
+    if (data.length == 0) {
         const message = document.createElement("div");
         message.className = "var-val";
-        message.textContent = String("No Functions Exist");
+        message.textContent = String("No Functions Called");
         dataAreaFunctions.appendChild(message);
         return;
     }
 
-    // for (const [name, value] of entries) {
-    //     let highlight = false;
-    //     if (name in variables) {
-    //         if (variables[name] !== value) {
-    //             highlight = true;
-    //         }
-    //     } else {
-    //         highlight = true;
-    //     }
-
-    //     const card = document.createElement("div");
-    //     if (highlight) {
-    //         card.className = "var-card var-changed"
-    //     } else {
-    //         card.className = "var-card"
-    //     }
-    //     card.setAttribute("role", "listitem");
-
-    //     const key = document.createElement("div");
-    //     key.className = "var-key";
-    //     key.textContent = name;
-
-    //     const val = document.createElement("div");
-    //     val.className = "var-val";
-    //     val.textContent = String(value);
-
-    //     card.appendChild(key);
-    //     card.appendChild(val);
-    //     dataAreaFunctions.appendChild(card);
-    //     variables[name] = value;
-    // }
+    for (const [index, name] of data.entries()) {
+        const card = document.createElement("div");
+        if (index == 0) {
+            card.className = "var-card var-changed"
+        } else {
+            card.className = "var-card"
+        }
+        card.setAttribute("role", "listitem");
+        
+        const key = document.createElement("div");
+        key.className = "var-key";
+        key.textContent = name;
+        card.appendChild(key);
+        dataAreaFunctions.appendChild(card);
+    }
 }
 
 function displayData(newDataState) {
@@ -313,7 +294,7 @@ function handle_ws(event) {
 
         case WS_CMD_DATA:
             renderDataVariables(data.CONTENT.variables);
-            renderDataFunctions([]);
+            renderDataFunctions(data.CONTENT.functions);
             displayData(dataState);
             renderCodeHighlights(data.CONTENT.line);
             break;

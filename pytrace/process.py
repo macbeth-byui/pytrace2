@@ -225,8 +225,10 @@ import json
 import os
 import traceback
 
+prev_line = -1
+
 def trace(frame, event, arg):
-    # print(event,frame.f_code.co_name,frame.f_lineno,frame.f_code.co_filename)
+    global prev_line
     if (event == "line" or event == "return") and frame.f_code.co_filename == "<string>": 
         sock_path = os.environ.get("SERVER_NAME")
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
@@ -237,12 +239,20 @@ def trace(frame, event, arg):
                     variables[name] = value
                 except:
                     pass
+            stack = []
+            curr = frame
+            while curr is not None and curr.f_code.co_name != "<module>":
+                 stack.append(curr.f_code.co_name)
+                 curr = curr.f_back
             data = json.dumps({
-                "line": frame.f_lineno - 1, # Lines of Code in this string
+                "line": frame.f_lineno - 1, 
                 "file": frame.f_code.co_filename,
                 "variables": variables,
-                "wait": event == "line"
+                "functions": stack,
+                "wait": prev_line != frame.f_lineno - 1
             })
+            prev_line = frame.f_lineno - 1
+            print(data)
             try:
                 s.connect(sock_path)
                 s.sendall(data.encode("utf-8"))
