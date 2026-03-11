@@ -38,10 +38,6 @@ class Process:
             print(f"[{self}] => ERROR: PTY already exists when starting process")
             return
         
-        x = """
-        "How are you?", he said.
-        """
-        
         # Wrap code with TRACE_CODE to enable communication back to the client
         full_code = Process.START_CODE + f"\n        exec(\"\"\"\n{self.code}\n\"\"\",ns, ns)\n" + Process.END_CODE
         
