@@ -95,9 +95,10 @@ function renderDataVariables(data) {
     }
 
     for (const [name, value] of entries) {
+        
         let highlight = false;
         if (name in variables) {
-            if (variables[name] !== value) {
+            if (variables[name] !== String(value)) {
                 highlight = true;
             }
         } else {
@@ -123,7 +124,7 @@ function renderDataVariables(data) {
         card.appendChild(key);
         card.appendChild(val);
         dataAreaVariables.appendChild(card);
-        variables[name] = value;
+        variables[name] = String(value);
     }
 }
 
@@ -245,7 +246,7 @@ function handle_ws(event) {
         return;
     }
 
-    console.log(">CMD: ",data.CMD," CONTENT: ",data.CONTENT);
+    // console.log(">CMD: ",data.CMD," CONTENT: ",data.CONTENT);
     switch (data.CMD) {
         case WS_CMD_STDOUT:
             terminalArea.value += data.CONTENT.TEXT;
@@ -348,7 +349,7 @@ function clear_data() {
 function ws_send(command, content) {
     if (ws != null) {
         ws.send(JSON.stringify({ "CMD": command, "CONTENT" : content }));
-        console.log("<CMD: ",command," CONTENT: ",content);
+        // console.log("<CMD: ",command," CONTENT: ",content);
     } else {
         console.log("ERROR: Tried to call ws.send while ws in null.");
     }
