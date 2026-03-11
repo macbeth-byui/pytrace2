@@ -221,9 +221,13 @@ import os
 import traceback
 
 prev_line = -1
+except_occurred = False
 
 def trace(frame, event, arg):
     global prev_line
+    global except_occurred
+    if event == "exception":
+        except_occurred = True
     if (event == "line" or event == "return") and frame.f_code.co_filename == "<string>": 
         sock_path = os.environ.get("SERVER_NAME")
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
@@ -244,7 +248,7 @@ def trace(frame, event, arg):
                 "file": frame.f_code.co_filename,
                 "variables": variables,
                 "functions": stack,
-                "wait": prev_line != frame.f_lineno - 1
+                "wait": (prev_line != frame.f_lineno - 1) and not except_occurred
             })
             prev_line = frame.f_lineno - 1
             try:
